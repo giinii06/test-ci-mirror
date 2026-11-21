@@ -1,0 +1,65 @@
+name: GitLab pipeline request
+run-name: GitLab pipeline ${{ inputs.pipeline }} · ${{ inputs.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+      stack:
+        required: true
+        type: choice
+        options: [bun, go, rust, docs]
+      directory:
+        default: .
+        type: string
+      hls:
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitlab-request-${{ inputs.pipeline }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: giinii06/ci-hub/.github/workflows/ci.yml@v1
+    with:
+      checkout_ref: ${{ inputs.sha }}
+      stack: ${{ inputs.stack }}
+      directory: ${{ inputs.directory }}
+
+  rust-policy:
+    if: inputs.stack == 'rust' && inputs.hls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+      - name: Check Rust targets
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+  media-hls:
+    if: inputs.stack == 'rust' && inputs.hls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Test HLS
+        run: sh tests/integration/hls.sh

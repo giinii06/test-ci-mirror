@@ -1,0 +1,12 @@
+name: GitLab CI Bridge
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  ci:
+    uses: giinii06/ci-hub/.github/workflows/ci.yml@v1
+    with:
+      stack: docs
+      directory: "."
