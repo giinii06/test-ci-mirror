@@ -1,1 +1,53 @@
-bmFtZTogR2l0TGFiIHBpcGVsaW5lIHJlcXVlc3QKcnVuLW5hbWU6IEdpdExhYiBwaXBlbGluZSAke3sgaW5wdXRzLnBpcGVsaW5lIH19IMK3ICR7eyBpbnB1dHMuc2hhIH19CgpvbjoKICB3b3JrZmxvd19kaXNwYXRjaDoKICAgIGlucHV0czoKICAgICAgcGlwZWxpbmU6CiAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgc2hhOgogICAgICAgIHJlcXVpcmVkOiB0cnVlCiAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgIHN0YWNrOgogICAgICAgIHJlcXVpcmVkOiB0cnVlCiAgICAgICAgdHlwZTogY2hvaWNlCiAgICAgICAgb3B0aW9uczogW2J1biwgZ28sIHJ1c3QsIGRvY3NdCiAgICAgIGRpcmVjdG9yeToKICAgICAgICBkZWZhdWx0OiAuCiAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgIGhsczoKICAgICAgICBkZWZhdWx0OiBmYWxzZQogICAgICAgIHR5cGU6IGJvb2xlYW4KCnBlcm1pc3Npb25zOgogIGNvbnRlbnRzOiByZWFkCgpjb25jdXJyZW5jeToKICBncm91cDogZ2l0bGFiLXJlcXVlc3QtJHt7IGlucHV0cy5waXBlbGluZSB9fQogIGNhbmNlbC1pbi1wcm9ncmVzczogZmFsc2UKCmpvYnM6CiAgYnVpbGQ6CiAgICB1c2VzOiBnaWluaWkwNi9jaS1odWIvLmdpdGh1Yi93b3JrZmxvd3MvY2kueW1sQHYxCiAgICB3aXRoOgogICAgICBjaGVja291dF9yZWY6ICR7eyBpbnB1dHMuc2hhIH19CiAgICAgIHN0YWNrOiAke3sgaW5wdXRzLnN0YWNrIH19CiAgICAgIGRpcmVjdG9yeTogJHt7IGlucHV0cy5kaXJlY3RvcnkgfX0KCiAgbWVkaWEtaGxzOgogICAgaWY6IGlucHV0cy5zdGFjayA9PSAncnVzdCcgJiYgaW5wdXRzLmhscwogICAgcnVucy1vbjogdWJ1bnR1LTI0LjA0CiAgICB0aW1lb3V0LW1pbnV0ZXM6IDM1CiAgICBzdGVwczoKICAgICAgLSB1c2VzOiBhY3Rpb25zL2NoZWNrb3V0QGQyMzQ0MWE0OGU1MTZiNmMzNGFlYTRmYTQxNTUxYTMwZTMwYWY4MDMKICAgICAgICB3aXRoOgogICAgICAgICAgcmVmOiAke3sgaW5wdXRzLnNoYSB9fQogICAgICAgICAgcGVyc2lzdC1jcmVkZW50aWFsczogZmFsc2UKICAgICAgLSBuYW1lOiBJbnN0YWxsIEZGbXBlZwogICAgICAgIHJ1bjogfAogICAgICAgICAgc3VkbyBhcHQtZ2V0IHVwZGF0ZSAtcXEKICAgICAgICAgIHN1ZG8gYXB0LWdldCBpbnN0YWxsIC15IC0tbm8taW5zdGFsbC1yZWNvbW1lbmRzIGZmbXBlZwogICAgICAtIG5hbWU6IFRlc3QgSExTCiAgICAgICAgcnVuOiBzaCB0ZXN0cy9pbnRlZ3JhdGlvbi9obHMuc2gK
+name: GitLab pipeline request
+run-name: GitLab pipeline ${{ inputs.pipeline }} · ${{ inputs.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+      stack:
+        required: true
+        type: choice
+        options: [bun, go, rust, docs]
+      directory:
+        default: .
+        type: string
+      hls:
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitlab-request-${{ inputs.pipeline }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: giinii06/ci-hub/.github/workflows/ci.yml@v1
+    with:
+      checkout_ref: ${{ inputs.sha }}
+      stack: ${{ inputs.stack }}
+      directory: ${{ inputs.directory }}
+
+  media-hls:
+    if: inputs.stack == 'rust' && inputs.hls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Test HLS
+        run: sh tests/integration/hls.sh
